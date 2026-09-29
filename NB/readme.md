@@ -169,10 +169,10 @@ $$
 
 ## 7. 高斯方差平滑：改善数值稳定性
 
-实现根据输入各特征的方差计算：
+记方差平滑参数 `var_smoothing` 为 $s$，实现根据输入各特征的方差计算：
 
 $$
-\epsilon=\texttt{var\_smoothing}\times\max_j\mathrm{Var}(X_j),
+\epsilon=s\times\max_j\mathrm{Var}(X_j),
 $$
 
 然后将其加到各类别的特征方差上，以缓解方差为零或过小时的除法与对数计算问题。这属于数值稳定性处理，不是 CPU 加速。
