@@ -1,6 +1,8 @@
 # VS Code configuration
 .vscode/
+.codex/
 AGENTS.md
+Test/
 # Python bytecode and cache directories
 __pycache__/
 *.py[cod]
