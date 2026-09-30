@@ -1,7 +1,7 @@
-"""数学等价性、参数统计、数值边界和源码扩展行为验证。"""
+"""算法等价性、数值稳定性及第二阶段范围验证。"""
 
 import unittest
-from unittest.mock import patch
+import warnings
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
@@ -14,31 +14,30 @@ from .main import MODEL_PARAMS, digits_split
 
 
 class TestOptimizedNB(unittest.TestCase):
-    @np.errstate(divide="ignore")  # 未观察类别的先验为 0，源码会计算 log(0)。
     def assert_reference(self, actual, reference, X):
         assert_array_equal(actual.classes_, reference.classes_)
         assert_array_equal(actual.class_count_, reference.class_count_)
-        prior = (np.log(reference.class_prior_) if isinstance(actual, nb.GaussianNB)
-                 else reference.class_log_prior_)
-        assert_allclose(actual.class_log_prior_, prior, rtol=1e-8, atol=1e-10)
         if isinstance(actual, nb.GaussianNB):
             for attr in ("theta_", "var_", "epsilon_", "class_prior_"):
                 assert_allclose(getattr(actual, attr), getattr(reference, attr),
                                 rtol=1e-8, atol=1e-10)
         elif isinstance(actual, nb.CategoricalNB):
+            assert_allclose(actual.class_log_prior_, reference.class_log_prior_)
+            assert_array_equal(actual.n_categories_, reference.n_categories_)
             for counts, expected in zip(actual.category_count_, reference.category_count_):
                 assert_array_equal(counts, expected)
             for table, expected in zip(actual.feature_log_prob_, reference.feature_log_prob_):
                 assert_allclose(table, expected, rtol=1e-8, atol=1e-10)
         else:
+            assert_allclose(actual.class_log_prior_, reference.class_log_prior_)
             assert_array_equal(actual.feature_count_, reference.feature_count_)
             assert_allclose(actual.feature_log_prob_, reference.feature_log_prob_,
                             rtol=1e-8, atol=1e-10)
             if isinstance(actual, nb.ComplementNB):
                 assert_array_equal(actual.feature_all_, reference.feature_all_)
-        raw = actual._validate_predict_X(X)
+        # 两边各自处理原始输入，避免用手动模型的预处理掩盖差异。
         assert_allclose(actual.joint_log_likelihood(X),
-                        reference._joint_log_likelihood(raw), rtol=1e-8, atol=1e-10)
+                        reference.predict_joint_log_proba(X), rtol=1e-8, atol=1e-10)
         assert_array_equal(actual.predict(X), reference.predict(X))
         assert_allclose(actual.predict_log_proba(X), reference.predict_log_proba(X),
                         rtol=1e-8, atol=1e-10)
@@ -218,104 +217,59 @@ class TestOptimizedNB(unittest.TestCase):
         reference = naive_bayes.GaussianNB().fit(X, np.tile([0, 1], 51)[:101])
         self.assert_reference(actual, reference, X)
 
-    def test_discrete_partial_fit_and_reset(self):
-        rng = np.random.default_rng(5)
-        X = rng.integers(0, 6, size=(39, 5))
-        y = np.repeat(["a", "b", "c"], 13)
-        for name, params in MODEL_PARAMS[1:]:
+    def test_fit_resets_statistics(self):
+        X = np.array([[0, 1], [1, 0], [2, 3], [4, 2], [3, 4], [5, 3]])
+        y = np.array([0, 0, 1, 1, 2, 2])
+        for name, params in MODEL_PARAMS:
             with self.subTest(model=name):
-                actual = getattr(nb, name)(**params)
-                reference = getattr(naive_bayes, name)(**params)
-                for indices in np.array_split(np.arange(39), 7):
-                    actual.partial_fit(X[indices], y[indices], classes=["c", "a", "b"])
-                    reference.partial_fit(X[indices], y[indices], classes=["c", "a", "b"])
-                    self.assert_reference(actual, reference, X)
-                fitted = getattr(nb, name)(**params).fit(X, y)
-                self.assert_reference(actual, getattr(naive_bayes, name)(**params).fit(X, y), X)
-                assert_allclose(actual.predict_proba(X), fitted.predict_proba(X))
-                actual.fit(X[:26], y[:26])
-                reference.fit(X[:26], y[:26])
-                self.assert_reference(actual, reference, X)
+                actual = getattr(nb, name)(**params).fit(X, y)
+                actual.fit(X[:4], y[:4])
+                reference = getattr(naive_bayes, name)(**params).fit(X[:4], y[:4])
+                self.assert_reference(actual, reference, X[:4])
+                assert_array_equal(actual.classes_, [0, 1])
 
-    def test_categorical_incremental_table_growth(self):
-        actual, reference = nb.CategoricalNB(), naive_bayes.CategoricalNB()
-        for X, y in (([[0, 0], [1, 1]], [0, 1]),
-                     ([[4, 2], [3, 1]], [0, 1]), ([[0, 0]], [1])):
-            actual.partial_fit(X, y, classes=[0, 1])
-            reference.partial_fit(X, y, classes=[0, 1])
-            self.assert_reference(actual, reference, [[4, 2]] if actual.n_categories_[0] == 5 else X)
-        assert_array_equal(actual.n_categories_, [5, 3])
-        assert_array_equal(actual.n_categories_, [t.shape[1] for t in reference.category_count_])
+    def test_scalar_alpha_numerical_protection(self):
+        X = np.array([[4, 0, 1], [3, 1, 0], [0, 5, 1], [1, 3, 0]])
+        y = [0, 0, 1, 1]
+        for name, params in MODEL_PARAMS[1:]:
+            for alpha in (1e-12, 1e-10, 0.2):
+                for force_alpha in (True, False):
+                    with self.subTest(model=name, alpha=alpha, force_alpha=force_alpha):
+                        options = {**params, "alpha": alpha, "force_alpha": force_alpha}
+                        with warnings.catch_warnings(record=True) as actual_warnings:
+                            warnings.simplefilter("always")
+                            actual = getattr(nb, name)(**options).fit(X, y)
+                        with warnings.catch_warnings(record=True) as reference_warnings:
+                            warnings.simplefilter("always")
+                            reference = getattr(naive_bayes, name)(**options).fit(X, y)
+                        expected_warning = alpha < 1e-10 and not force_alpha
+                        self.assertEqual(len(actual_warnings), int(expected_warning))
+                        self.assertEqual(len(reference_warnings), int(expected_warning))
+                        if expected_warning:
+                            self.assertEqual(actual_warnings[0].category, UserWarning)
+                        self.assertEqual(actual.alpha, alpha)
+                        self.assert_reference(actual, reference, X)
+                        effective = max(alpha, 1e-10) if not force_alpha else alpha
+                        unclipped = getattr(nb, name)(**{**params, "alpha": effective}).fit(X, y)
+                        assert_allclose(actual.predict_proba(X), unclipped.predict_proba(X))
 
-    def test_partial_fit_class_contract(self):
+    def test_dense_only_stage_boundary(self):
+        duplicate = sparse.csr_matrix(
+            ([0.6, 0.6, 1.0], [0, 0, 1], [0, 2, 3]), shape=(2, 2)
+        )
         for name, params in MODEL_PARAMS:
             with self.subTest(model=name):
                 model = getattr(nb, name)(**params)
+                self.assertFalse(hasattr(model, "partial_fit"))
                 with self.assertRaises(ValueError):
-                    model.partial_fit([[0], [1]], [0, 1])
-                model.partial_fit([[0], [1]], [0, 1], classes=[1, 0])
-                for X, y, classes in (([[1]], [2], None), ([[1]], [0], [0, 2]),
-                                      ([[1, 2]], [0], None)):
+                    model.fit(duplicate, [0, 1])
+                model.fit([[0, 1], [1, 0]], [0, 1])
+                for method in ("predict", "joint_log_likelihood", "predict_proba", "predict_log_proba"):
                     with self.assertRaises(ValueError):
-                        model.partial_fit(X, y, classes=classes)
-                assert_array_equal(model.class_count_, [1, 1])
-
-    def test_gaussian_partial_fit_same_batch_order(self):
-        rng = np.random.default_rng(30)
-        actual = nb.GaussianNB(var_smoothing=0.01)
-        reference = naive_bayes.GaussianNB(var_smoothing=0.01)
-        test = rng.normal(size=(10, 3))
-        batches = [(rng.normal(size=(12, 3)), np.repeat([0, 1], 6)),
-                   (rng.normal(2, 3, size=(18, 3)), np.tile([0, 1, 2], 6)),
-                   (rng.normal(-1, 0.7, size=(9, 3)), np.tile([0, 1, 2], 3))]
-        for X, y in batches:
-            actual.partial_fit(X, y, classes=[0, 1, 2])
-            reference.partial_fit(X, y, classes=[0, 1, 2])
-            self.assert_reference(actual, reference, test)
-        actual.fit(batches[-1][0], batches[-1][1])
-        reference.fit(batches[-1][0], batches[-1][1])
-        self.assert_reference(actual, reference, test)
-
-    def test_csr_dense_equivalence_without_densifying(self):
-        rng = np.random.default_rng(4)
-        X = rng.integers(0, 5, size=(45, 30)).astype(float)
-        X[rng.random(X.shape) < 0.9] = 0
-        y = np.tile([2, 7, 19], 15)
-        for name, params in (("MultinomialNB", {}), ("BernoulliNB", {"binarize": 1}),
-                             ("ComplementNB", {}), ("ComplementNB", {"norm": True})):
-            for container in (sparse.csr_matrix, sparse.csr_array):
-                with self.subTest(model=name, params=params, csr=container.__name__):
-                    dense = getattr(nb, name)(**params).fit(X, y)
-                    csr = container(X)
-                    original_data = csr.data.copy()
-                    reference = getattr(naive_bayes, name)(**params).fit(csr, y)
-                    with patch.object(container, "toarray", side_effect=AssertionError("禁止稠密化")):
-                        actual = getattr(nb, name)(**params).fit(csr, y)
-                        self.assert_reference(actual, reference, csr)
-                        assert_allclose(actual.predict_proba(csr), dense.predict_proba(X))
-                        incremental = getattr(nb, name)(**params)
-                        for indices in np.array_split(np.arange(45), 3):
-                            incremental.partial_fit(csr[indices], y[indices], classes=[2, 7, 19])
-                        self.assert_reference(incremental, reference, csr)
-                    assert_array_equal(csr.data, original_data)
-
-    def test_csr_binary_validation(self):
-        X = sparse.csr_matrix([[0, 1], [1, 0]])
-        actual = nb.BernoulliNB(binarize=None).fit(X, [0, 1])
-        reference = naive_bayes.BernoulliNB(binarize=None).fit(X, [0, 1])
-        self.assert_reference(actual, reference, X)
-        with self.assertRaises(ValueError):
-            nb.BernoulliNB(binarize=None).fit(X * 2, [0, 1])
-        with self.assertRaises(ValueError):
-            nb.BernoulliNB(binarize=-1).fit(X, [0, 1])
-        for model in (nb.GaussianNB(), nb.CategoricalNB()):
-            with self.assertRaises(ValueError):
-                model.fit(X, [0, 1])
-        # 重复列索引先求和，然后二值化，输入保持不变。
-        duplicate = sparse.csr_matrix(([0.6, 0.6, 1.0], [0, 0, 1], [0, 2, 3]), shape=(2, 2))
-        binary = nb.BernoulliNB(binarize=1).fit(duplicate, [0, 1])
-        assert_array_equal(binary.feature_count_, [[1, 0], [0, 0]])
-        self.assertEqual(duplicate.nnz, 3)
+                        getattr(model, method)(duplicate)
+        # 超出本阶段的 CSR 不被合并或二值化。
+        assert_array_equal(duplicate.data, [0.6, 0.6, 1.0])
+        assert_array_equal(duplicate.indices, [0, 0, 1])
 
     def test_complement_norm_and_no_prior(self):
         X, y = [[4, 0, 1], [2, 1, 0], [0, 3, 2], [1, 4, 0]], [0, 0, 1, 1]

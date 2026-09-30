@@ -4,6 +4,7 @@
 """
 
 from numbers import Real
+import warnings
 
 import numpy as np
 from scipy import sparse
@@ -20,19 +21,11 @@ def _finite_scalar(value, name, minimum=0, strict=False):
 class _BaseNB:
     """公共校验、类别映射及按需归一化，类别顺序与 np.unique 一致。"""
 
-    _accept_sparse = False
-
     def _prepare_X(self, X):
         if sparse.issparse(X):
-            if not self._accept_sparse:
-                raise ValueError("该模型仅支持稠密输入")
-            X = X.tocsr(copy=True).astype(float, copy=False)
-            X.sum_duplicates()
-            values = X.data
-        else:
-            X = np.asarray(X, dtype=float)
-            values = X
-        if X.ndim != 2 or X.shape[1] == 0 or not np.isfinite(values).all():
+            raise ValueError("本阶段仅支持稠密输入")
+        X = np.asarray(X, dtype=float)
+        if X.ndim != 2 or X.shape[1] == 0 or not np.isfinite(X).all():
             raise ValueError("X 必须是有限数值组成的二维特征矩阵")
         return X
 
@@ -45,32 +38,18 @@ class _BaseNB:
             raise ValueError("标签必须有限")
         return X, y
 
-    def _training_classes(self, X, y, classes, reset):
-        first = reset or not getattr(self, "_is_fitted", False)
-        if first:
-            if classes is None:
-                raise ValueError("首次 partial_fit 必须提供全部 classes")
-            classes = np.asarray(classes)
-            if classes.ndim != 1 or classes.size == 0:
-                raise ValueError("classes 必须为非空一维标签")
-            known = np.unique(classes)
-        else:
-            known = self.classes_
-            if X.shape[1] != self.n_features_in_:
-                raise ValueError("训练特征数必须与之前一致")
-            if classes is not None and not np.array_equal(np.unique(classes), known):
-                raise ValueError("增量训练的 classes 必须保持一致")
-        if not np.isin(y, known).all():
-            raise ValueError("y 含有 classes 中未声明的标签")
-        if first:
-            self.classes_ = known
-            self.n_features_in_ = X.shape[1]
-            self._is_fitted = False
-        return first
+    def fit(self, X, y):
+        X, y = self._prepare_training(X, y)
+        self._is_fitted = False
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
+        self._fit(X, y)
+        self._is_fitted = True
+        return self
 
     def _validate_predict_X(self, X):
         if not getattr(self, "_is_fitted", False):
-            raise ValueError("请先调用 fit 或 partial_fit")
+            raise ValueError("请先调用 fit")
         X = self._prepare_X(X)
         if X.shape[1] != self.n_features_in_:
             raise ValueError("预测特征数必须与训练特征数一致")
@@ -116,28 +95,13 @@ class GaussianNB(_BaseNB):
         total_ssd += (n_new * n_past / n_total) * (mu - new_mu) ** 2
         return total_mu, total_ssd / n_total
 
-    def fit(self, X, y):
-        X, y = self._prepare_training(X, y)
-        return self._partial_fit(X, y, np.unique(y), reset=True)
-
-    def partial_fit(self, X, y, classes=None):
-        X, y = self._prepare_training(X, y)
-        return self._partial_fit(X, y, classes, reset=False)
-
-    def _partial_fit(self, X, y, classes, reset):
-        first = self._training_classes(X, y, classes, reset)
-        # sklearn 1.9.1 先覆盖 epsilon_，再减去当前批次的平滑量。
-        # 不改为累计全局方差，也不改为减去上一个批次的 epsilon_。
+    def _fit(self, X, y):
         self.epsilon_ = self.var_smoothing * X.var(axis=0).max()
-        if first:
-            shape = (len(self.classes_), self.n_features_in_)
-            self.theta_ = np.zeros(shape)
-            self.var_ = np.zeros(shape)
-            self.class_count_ = np.zeros(len(self.classes_))
-        else:
-            self.var_ -= self.epsilon_
-        for label in np.unique(y):
-            i = np.searchsorted(self.classes_, label)
+        shape = (len(self.classes_), self.n_features_in_)
+        self.theta_ = np.zeros(shape)
+        self.var_ = np.zeros(shape)
+        self.class_count_ = np.zeros(len(self.classes_))
+        for i, label in enumerate(self.classes_):
             group = X[y == label]
             self.theta_[i], self.var_[i] = self._update_mean_variance(
                 self.class_count_[i], self.theta_[i], self.var_[i], group
@@ -145,59 +109,53 @@ class GaussianNB(_BaseNB):
             self.class_count_[i] += len(group)
         self.var_ += self.epsilon_
         if not np.isfinite(self.var_).all() or (self.var_ <= 0).any():
-            self._is_fitted = False
             raise ValueError("高斯方差必须大于 0，请使用非恒定数据和正的方差平滑")
         self.class_prior_ = self.class_count_ / self.class_count_.sum()
-        with np.errstate(divide="ignore"):
-            self.class_log_prior_ = np.log(self.class_prior_)
-        self._is_fitted = True
-        return self
 
     def _joint_log_likelihood(self, X):
         scores = []
         for i in range(len(self.classes_)):
             n_ij = -0.5 * np.log(2 * np.pi * self.var_[i]).sum()
             n_ij -= 0.5 * (((X - self.theta_[i]) ** 2) / self.var_[i]).sum(axis=1)
-            scores.append(self.class_log_prior_[i] + n_ij)
+            scores.append(np.log(self.class_prior_[i]) + n_ij)
         return np.column_stack(scores)
 
 
 class _BaseDiscreteNB(_BaseNB):
-    _accept_sparse = True
-
-    def __init__(self, alpha=1.0):
+    def __init__(self, alpha=1.0, force_alpha=True):
         _finite_scalar(alpha, "alpha", strict=True)
+        if not isinstance(force_alpha, (bool, np.bool_)):
+            raise ValueError("force_alpha 必须为布尔值")
         self.alpha = alpha
+        self.force_alpha = force_alpha
+
+    def _check_alpha(self):
+        """保留源码的可选数值下限；不改变构造参数 alpha。"""
+        alpha_lower_bound = 1e-10
+        if self.alpha < alpha_lower_bound and not self.force_alpha:
+            warnings.warn(
+                "alpha too small will result in numeric errors, setting alpha ="
+                f" {alpha_lower_bound:.1e}. Use `force_alpha=True` to keep alpha"
+                " unchanged."
+            )
+            return np.maximum(self.alpha, alpha_lower_bound)
+        return self.alpha
 
     def _prepare_X(self, X):
         X = super()._prepare_X(X)
-        values = X.data if sparse.issparse(X) else X
-        if (values < 0).any():
+        if (X < 0).any():
             raise ValueError("离散 NB 的输入必须非负")
         return X
 
-    def fit(self, X, y):
-        X, y = self._prepare_training(X, y)
-        return self._partial_fit(X, y, np.unique(y), reset=True)
-
-    def partial_fit(self, X, y, classes=None):
-        X, y = self._prepare_training(X, y)
-        return self._partial_fit(X, y, classes, reset=False)
-
-    def _partial_fit(self, X, y, classes, reset):
-        first = self._training_classes(X, y, classes, reset)
-        if first:
-            self._init_counters()
+    def _fit(self, X, y):
+        self._init_counters()
         # 等价于源码 LabelBinarizer 的多类、二类及单类指示矩阵。
-        Y = (y[:, None] == self.classes_[None, :]).astype(float)
+        Y = (y[:, None] == self.classes_[None, :]).astype(np.int64)
         self._count(X, Y)
-        self._update_feature_log_prob()
-        with np.errstate(divide="ignore"):
-            self.class_log_prior_ = (
-                np.log(self.class_count_) - np.log(self.class_count_.sum())
-            )
-        self._is_fitted = True
-        return self
+        self._update_feature_log_prob(self._check_alpha())
+        self.class_log_prior_ = (
+            np.log(self.class_count_) - np.log(self.class_count_.sum())
+        )
 
     def _init_counters(self):
         self.class_count_ = np.zeros(len(self.classes_))
@@ -209,8 +167,8 @@ class _BaseDiscreteNB(_BaseNB):
 
 
 class MultinomialNB(_BaseDiscreteNB):
-    def _update_feature_log_prob(self):
-        counts = self.feature_count_ + self.alpha
+    def _update_feature_log_prob(self, alpha):
+        counts = self.feature_count_ + alpha
         self.feature_log_prob_ = np.log(counts) - np.log(counts.sum(axis=1))[:, None]
 
     def _joint_log_likelihood(self, X):
@@ -218,8 +176,8 @@ class MultinomialNB(_BaseDiscreteNB):
 
 
 class BernoulliNB(_BaseDiscreteNB):
-    def __init__(self, alpha=1.0, binarize=0.0):
-        super().__init__(alpha)
+    def __init__(self, alpha=1.0, binarize=0.0, force_alpha=True):
+        super().__init__(alpha, force_alpha)
         if binarize is not None and (
             not isinstance(binarize, Real) or not np.isfinite(binarize)
         ):
@@ -228,24 +186,15 @@ class BernoulliNB(_BaseDiscreteNB):
 
     def _prepare_X(self, X):
         X = _BaseNB._prepare_X(self, X)
-        if sparse.issparse(X):
-            if self.binarize is not None:
-                if self.binarize < 0:
-                    raise ValueError("稀疏输入要求 binarize 非负")
-                X.data = (X.data > self.binarize).astype(float)
-                X.eliminate_zeros()
-            elif ((X.data != 0) & (X.data != 1)).any():
-                raise ValueError("binarize=None 时输入必须为 0 或 1")
-            return X
         if self.binarize is not None:
             return (X > self.binarize).astype(float)
         if ((X != 0) & (X != 1)).any():
             raise ValueError("binarize=None 时输入必须为 0 或 1")
         return X
 
-    def _update_feature_log_prob(self):
-        self.feature_log_prob_ = np.log(self.feature_count_ + self.alpha)
-        self.feature_log_prob_ -= np.log(self.class_count_ + 2 * self.alpha)[:, None]
+    def _update_feature_log_prob(self, alpha):
+        self.feature_log_prob_ = np.log(self.feature_count_ + alpha)
+        self.feature_log_prob_ -= np.log(self.class_count_ + 2 * alpha)[:, None]
 
     def _joint_log_likelihood(self, X):
         # 按源码在预测时计算未出现概率、权重差和偏置。
@@ -255,10 +204,8 @@ class BernoulliNB(_BaseDiscreteNB):
 
 
 class CategoricalNB(_BaseDiscreteNB):
-    _accept_sparse = False
-
-    def __init__(self, alpha=1.0, min_categories=None):
-        super().__init__(alpha)
+    def __init__(self, alpha=1.0, min_categories=None, force_alpha=True):
+        super().__init__(alpha, force_alpha)
         if min_categories is not None:
             _finite_scalar(min_categories, "min_categories", minimum=1)
             if min_categories != int(min_categories):
@@ -279,8 +226,8 @@ class CategoricalNB(_BaseDiscreteNB):
 
     def _count(self, X, Y):
         self.class_count_ += Y.sum(axis=0)
-        sizes = np.maximum(X.max(axis=0) + 1, self.min_categories or 1)
-        for j, size in enumerate(sizes):
+        self.n_categories_ = np.maximum(X.max(axis=0) + 1, self.min_categories or 1)
+        for j, size in enumerate(self.n_categories_):
             counts = self.category_count_[j]
             if size > counts.shape[1]:
                 counts = np.pad(counts, ((0, 0), (0, size - counts.shape[1])))
@@ -289,13 +236,11 @@ class CategoricalNB(_BaseDiscreteNB):
                 indices = np.nonzero(hist)[0]
                 counts[c, indices] += hist[indices]
             self.category_count_[j] = counts
-        # 记录累计参数表的实际大小；后续较小编码的批次不缩小预测范围。
-        self.n_categories_ = np.array([table.shape[1] for table in self.category_count_])
 
-    def _update_feature_log_prob(self):
+    def _update_feature_log_prob(self, alpha):
         self.feature_log_prob_ = []
         for table in self.category_count_:
-            counts = table + self.alpha
+            counts = table + alpha
             self.feature_log_prob_.append(
                 np.log(counts) - np.log(counts.sum(axis=1))[:, None]
             )
@@ -312,8 +257,8 @@ class CategoricalNB(_BaseDiscreteNB):
 class ComplementNB(_BaseDiscreteNB):
     """补集计数直接生成权重；至少两类，预测不加类别先验。"""
 
-    def __init__(self, alpha=1.0, norm=False):
-        super().__init__(alpha)
+    def __init__(self, alpha=1.0, norm=False, force_alpha=True):
+        super().__init__(alpha, force_alpha)
         if not isinstance(norm, (bool, np.bool_)):
             raise ValueError("norm 必须为布尔值")
         self.norm = norm
@@ -327,8 +272,8 @@ class ComplementNB(_BaseDiscreteNB):
         super()._count(X, Y)
         self.feature_all_ = self.feature_count_.sum(axis=0)
 
-    def _update_feature_log_prob(self):
-        counts = self.feature_all_ + self.alpha - self.feature_count_
+    def _update_feature_log_prob(self, alpha):
+        counts = self.feature_all_ + alpha - self.feature_count_
         logged = np.log(counts / counts.sum(axis=1, keepdims=True))
         if self.norm:
             summed = logged.sum(axis=1, keepdims=True)

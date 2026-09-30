@@ -1,0 +1,225 @@
+{
+  "environment": {
+    "python": "3.13.15",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "sklearn": "1.9.1"
+  },
+  "settings": {
+    "samples": 1200,
+    "features": 8000,
+    "density": 0.002,
+    "repeats": 3,
+    "threads": 1,
+    "output": "NB/sklearn_impl/benchmark_results.json"
+  },
+  "shape": [
+    1200,
+    8000
+  ],
+  "nnz": 19200,
+  "results": [
+    {
+      "model": "MultinomialNB",
+      "paths": [
+        {
+          "input": "dense",
+          "implementation": "manual",
+          "input_storage_bytes": 76800000,
+          "model_state_bytes": 384072,
+          "fit": {
+            "median_seconds": 0.028168748000098276,
+            "traced_peak_bytes": 802587
+          },
+          "predict": {
+            "median_seconds": 0.00900107300003583,
+            "traced_peak_bytes": 31112
+          }
+        },
+        {
+          "input": "dense",
+          "implementation": "sklearn",
+          "input_storage_bytes": 76800000,
+          "model_state_bytes": 384072,
+          "fit": {
+            "median_seconds": 0.02856811900073808,
+            "traced_peak_bytes": 807677
+          },
+          "predict": {
+            "median_seconds": 0.009045884000443039,
+            "traced_peak_bytes": 31348
+          }
+        },
+        {
+          "input": "csr",
+          "implementation": "manual",
+          "input_storage_bytes": 235204,
+          "model_state_bytes": 384072,
+          "fit": {
+            "median_seconds": 0.00032542400003876537,
+            "traced_peak_bytes": 802535
+          },
+          "predict": {
+            "median_seconds": 4.5465000766853336e-05,
+            "traced_peak_bytes": 203284
+          }
+        },
+        {
+          "input": "csr",
+          "implementation": "sklearn",
+          "input_storage_bytes": 235204,
+          "model_state_bytes": 384072,
+          "fit": {
+            "median_seconds": 0.0007307940004466218,
+            "traced_peak_bytes": 807241
+          },
+          "predict": {
+            "median_seconds": 8.211400017898995e-05,
+            "traced_peak_bytes": 203770
+          }
+        }
+      ],
+      "partial_fit": {
+        "batches": 8,
+        "median_seconds": 0.002053684000202338,
+        "traced_peak_bytes": 1012544,
+        "model_state_bytes": 384072
+      }
+    },
+    {
+      "model": "BernoulliNB",
+      "paths": [
+        {
+          "input": "dense",
+          "implementation": "manual",
+          "input_storage_bytes": 76800000,
+          "model_state_bytes": 384072,
+          "fit": {
+            "median_seconds": 0.040111385000273,
+            "traced_peak_bytes": 96002512
+          },
+          "predict": {
+            "median_seconds": 0.010770068000056199,
+            "traced_peak_bytes": 32001816
+          }
+        },
+        {
+          "input": "dense",
+          "implementation": "sklearn",
+          "input_storage_bytes": 76800000,
+          "model_state_bytes": 384072,
+          "fit": {
+            "median_seconds": 0.051340435999918554,
+            "traced_peak_bytes": 96005044
+          },
+          "predict": {
+            "median_seconds": 0.015045563000057882,
+            "traced_peak_bytes": 32004990
+          }
+        },
+        {
+          "input": "csr",
+          "implementation": "manual",
+          "input_storage_bytes": 235204,
+          "model_state_bytes": 384072,
+          "fit": {
+            "median_seconds": 0.00037007299943070393,
+            "traced_peak_bytes": 1038483
+          },
+          "predict": {
+            "median_seconds": 0.0001789960006135516,
+            "traced_peak_bytes": 667156
+          }
+        },
+        {
+          "input": "csr",
+          "implementation": "sklearn",
+          "input_storage_bytes": 235204,
+          "model_state_bytes": 384072,
+          "fit": {
+            "median_seconds": 0.0007846180005799397,
+            "traced_peak_bytes": 1043029
+          },
+          "predict": {
+            "median_seconds": 0.00028578199999174103,
+            "traced_peak_bytes": 668472
+          }
+        }
+      ],
+      "partial_fit": {
+        "batches": 8,
+        "median_seconds": 0.0022197110001798137,
+        "traced_peak_bytes": 1043348,
+        "model_state_bytes": 384072
+      }
+    },
+    {
+      "model": "ComplementNB",
+      "paths": [
+        {
+          "input": "dense",
+          "implementation": "manual",
+          "input_storage_bytes": 76800000,
+          "model_state_bytes": 448072,
+          "fit": {
+            "median_seconds": 0.028051747000063187,
+            "traced_peak_bytes": 865155
+          },
+          "predict": {
+            "median_seconds": 0.009114913000303204,
+            "traced_peak_bytes": 17480
+          }
+        },
+        {
+          "input": "dense",
+          "implementation": "sklearn",
+          "input_storage_bytes": 76800000,
+          "model_state_bytes": 448072,
+          "fit": {
+            "median_seconds": 0.02902288099994621,
+            "traced_peak_bytes": 869565
+          },
+          "predict": {
+            "median_seconds": 0.009275823999814747,
+            "traced_peak_bytes": 17624
+          }
+        },
+        {
+          "input": "csr",
+          "implementation": "manual",
+          "input_storage_bytes": 235204,
+          "model_state_bytes": 448072,
+          "fit": {
+            "median_seconds": 0.00026327199975639815,
+            "traced_peak_bytes": 865119
+          },
+          "predict": {
+            "median_seconds": 4.398400051286444e-05,
+            "traced_peak_bytes": 203284
+          }
+        },
+        {
+          "input": "csr",
+          "implementation": "sklearn",
+          "input_storage_bytes": 235204,
+          "model_state_bytes": 448072,
+          "fit": {
+            "median_seconds": 0.0006745450000380515,
+            "traced_peak_bytes": 869635
+          },
+          "predict": {
+            "median_seconds": 7.879500026319874e-05,
+            "traced_peak_bytes": 203770
+          }
+        }
+      ],
+      "partial_fit": {
+        "batches": 8,
+        "median_seconds": 0.0017590369998288224,
+        "traced_peak_bytes": 1075053,
+        "model_state_bytes": 448072
+      }
+    }
+  ],
+  "memory_scope": "tracemalloc 新增分配峰值；不含准备好的输入，不等于进程 RSS 或全部原生库内存"
+}

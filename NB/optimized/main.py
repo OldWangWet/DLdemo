@@ -42,7 +42,7 @@ def main():
         ])
         scores = manual.joint_log_likelihood(X_test)
         assert_allclose(scores, basic_scores, rtol=1e-8, atol=1e-10)
-        assert_allclose(scores, reference._joint_log_likelihood(raw),
+        assert_allclose(scores, reference.predict_joint_log_proba(X_test),
                         rtol=1e-8, atol=1e-10)
         assert_allclose(manual.predict_proba(X_test), reference.predict_proba(X_test),
                         rtol=1e-8, atol=1e-10)

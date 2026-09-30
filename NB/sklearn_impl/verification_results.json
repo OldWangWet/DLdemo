@@ -1,0 +1,134 @@
+{
+  "sklearn": "1.9.1",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "source_tests": {
+    "source": "/home/fire/miniconda3/envs/DLdemo/lib/python3.13/site-packages/sklearn/tests/test_naive_bayes.py",
+    "sha256": "5a0122b705533f936afac2e7c92b118668fc9f01144d941937359159f3d1e515",
+    "seed": 42,
+    "passed": 99,
+    "failed": 0,
+    "skipped": 48,
+    "errors": 0,
+    "exit_code": 0
+  },
+  "estimator_checks": [
+    {
+      "model": "GaussianNB",
+      "passed": 61,
+      "skipped": 17,
+      "failures": [
+        {
+          "check": "check_valid_tag_types",
+          "error_type": "AssertionError",
+          "message": "Tag values need to be of a certain type. Please refer to the documentation of `sklearn.utils.Tags` for more details."
+        },
+        {
+          "check": "check_estimators_unfitted",
+          "error_type": "AssertionError",
+          "message": "Estimator should raise a NotFittedError when calling `predict` before fit. Either call `check_is_fitted(self)` at the beginning of `predict` or set `tags.requires_fit=False` on estimator tags to disable this check.\n- `check_is_fitted`: https://scikit-learn.org/dev/modules/generated/sklearn.utils.validation.check_is_fitted.html\n- Estimator Tags: https://scikit-learn.org/dev/developers/develop.html#estimator-tags"
+        },
+        {
+          "check": "check_array_api_same_namespace",
+          "error_type": "IndexError",
+          "message": "Index arrays for array_api_strict must be array_api_strict arrays",
+          "reference_error_type": "IndexError",
+          "reference_message": "Index arrays for array_api_strict must be array_api_strict arrays"
+        },
+        {
+          "check": "check_supervised_y_2d",
+          "error_type": "AssertionError",
+          "message": "expected 1 DataConversionWarning, got: "
+        }
+      ]
+    },
+    {
+      "model": "MultinomialNB",
+      "passed": 61,
+      "skipped": 0,
+      "failures": [
+        {
+          "check": "check_valid_tag_types",
+          "error_type": "AssertionError",
+          "message": "Tag values need to be of a certain type. Please refer to the documentation of `sklearn.utils.Tags` for more details."
+        },
+        {
+          "check": "check_estimators_unfitted",
+          "error_type": "AssertionError",
+          "message": "Estimator should raise a NotFittedError when calling `predict` before fit. Either call `check_is_fitted(self)` at the beginning of `predict` or set `tags.requires_fit=False` on estimator tags to disable this check.\n- `check_is_fitted`: https://scikit-learn.org/dev/modules/generated/sklearn.utils.validation.check_is_fitted.html\n- Estimator Tags: https://scikit-learn.org/dev/developers/develop.html#estimator-tags"
+        },
+        {
+          "check": "check_supervised_y_2d",
+          "error_type": "AssertionError",
+          "message": "expected 1 DataConversionWarning, got: "
+        }
+      ]
+    },
+    {
+      "model": "CategoricalNB",
+      "passed": 60,
+      "skipped": 0,
+      "failures": [
+        {
+          "check": "check_valid_tag_types",
+          "error_type": "AssertionError",
+          "message": "Tag values need to be of a certain type. Please refer to the documentation of `sklearn.utils.Tags` for more details."
+        },
+        {
+          "check": "check_estimators_unfitted",
+          "error_type": "AssertionError",
+          "message": "Estimator should raise a NotFittedError when calling `predict` before fit. Either call `check_is_fitted(self)` at the beginning of `predict` or set `tags.requires_fit=False` on estimator tags to disable this check.\n- `check_is_fitted`: https://scikit-learn.org/dev/modules/generated/sklearn.utils.validation.check_is_fitted.html\n- Estimator Tags: https://scikit-learn.org/dev/developers/develop.html#estimator-tags"
+        },
+        {
+          "check": "check_supervised_y_2d",
+          "error_type": "AssertionError",
+          "message": "expected 1 DataConversionWarning, got: "
+        }
+      ]
+    },
+    {
+      "model": "BernoulliNB",
+      "passed": 60,
+      "skipped": 0,
+      "failures": [
+        {
+          "check": "check_valid_tag_types",
+          "error_type": "AssertionError",
+          "message": "Tag values need to be of a certain type. Please refer to the documentation of `sklearn.utils.Tags` for more details."
+        },
+        {
+          "check": "check_estimators_unfitted",
+          "error_type": "AssertionError",
+          "message": "Estimator should raise a NotFittedError when calling `predict` before fit. Either call `check_is_fitted(self)` at the beginning of `predict` or set `tags.requires_fit=False` on estimator tags to disable this check.\n- `check_is_fitted`: https://scikit-learn.org/dev/modules/generated/sklearn.utils.validation.check_is_fitted.html\n- Estimator Tags: https://scikit-learn.org/dev/developers/develop.html#estimator-tags"
+        },
+        {
+          "check": "check_supervised_y_2d",
+          "error_type": "AssertionError",
+          "message": "expected 1 DataConversionWarning, got: "
+        }
+      ]
+    },
+    {
+      "model": "ComplementNB",
+      "passed": 61,
+      "skipped": 0,
+      "failures": [
+        {
+          "check": "check_valid_tag_types",
+          "error_type": "AssertionError",
+          "message": "Tag values need to be of a certain type. Please refer to the documentation of `sklearn.utils.Tags` for more details."
+        },
+        {
+          "check": "check_estimators_unfitted",
+          "error_type": "AssertionError",
+          "message": "Estimator should raise a NotFittedError when calling `predict` before fit. Either call `check_is_fitted(self)` at the beginning of `predict` or set `tags.requires_fit=False` on estimator tags to disable this check.\n- `check_is_fitted`: https://scikit-learn.org/dev/modules/generated/sklearn.utils.validation.check_is_fitted.html\n- Estimator Tags: https://scikit-learn.org/dev/developers/develop.html#estimator-tags"
+        },
+        {
+          "check": "check_supervised_y_2d",
+          "error_type": "AssertionError",
+          "message": "expected 1 DataConversionWarning, got: "
+        }
+      ]
+    }
+  ]
+}

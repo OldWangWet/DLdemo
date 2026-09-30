@@ -1,0 +1,4 @@
+# 仅用于扩展验证，不是模型运行依赖。
+pytest==9.1.1
+pandas==3.0.6
+array-api-strict==2.6.1
