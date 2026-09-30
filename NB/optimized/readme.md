@@ -2,7 +2,7 @@
 
 本目录对应[项目 README](../../readme.md) 的第二阶段：在基础实现上，参考 sklearn 源码进行算法和数学优化，解释依据、收益与适用条件，并对照验证结果。五种模型、三方演示、正确性测试和性能基准均已实现；增量训练、三种模型的 CSR 输入及补集权重归一化也已验证。代码入口为 [nb.py](nb.py)，实测记录见第 10 节。
 
-原理以 [NB README](../readme.md) 为准，现有代码以 [基础实现](../basic/nb.py) 为起点，源码分析参考[源码优化说明](../源码优化.md)。已核对 `DLdemo` 环境中的 scikit-learn 1.9.1，源码位于 `/home/fire/miniconda3/envs/DLdemo/lib/python3.13/site-packages/sklearn/naive_bayes.py`。本文只列该版本源码已经实现的方法，每项均给出对应源码位置；代码片段仅简化数组后端和接口细节，计算方式与源码一致。
+原理以 [NB README](../readme.md) 为准，现有代码以 [基础实现](../basic/nb.py) 为起点。已核对 `DLdemo` 环境中的 scikit-learn 1.9.1，源码位于 `/home/fire/miniconda3/envs/DLdemo/lib/python3.13/site-packages/sklearn/naive_bayes.py`。本文只列该版本源码已经实现的方法，每项均给出对应源码位置；代码片段仅简化数组后端和接口细节，计算方式与源码一致。
 
 ## 1. 本阶段的目标与边界
 
